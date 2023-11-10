@@ -5,7 +5,7 @@ cython
 matplotlib
 scikit-image
 tensorflow
-keras==2.0.8
+keras
 opencv-python
 h5py
 imgaug
