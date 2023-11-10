@@ -1,28 +1,20 @@
 """
 Mask R-CNN
 Train on the toy Balloon dataset and implement color splash effect.
-
 Copyright (c) 2018 Matterport, Inc.
 Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
-
 ------------------------------------------------------------
-
 Usage: import the module (see Jupyter notebooks for examples), or run from
        the command line as such:
-
     # Train a new model starting from pre-trained COCO weights
     python3 balloon.py train --dataset=/path/to/balloon/dataset --weights=coco
-
     # Resume training a model that you had trained earlier
     python3 balloon.py train --dataset=/path/to/balloon/dataset --weights=last
-
     # Train a new model starting from ImageNet weights
     python3 balloon.py train --dataset=/path/to/balloon/dataset --weights=imagenet
-
     # Apply color splash to an image
     python3 balloon.py splash --weights=/path/to/weights/file.h5 --image=<URL or path to file>
-
     # Apply color splash to video using the last weights you trained
     python3 balloon.py splash --weights=last --video=<URL or path to file>
 """
@@ -32,10 +24,14 @@ import sys
 import json
 import datetime
 import numpy as np
+# import skimage.io
 import skimage.draw
+import cv2
+from mrcnn.visualize import display_instances
+import matplotlib.pyplot as plt
 
 # Root directory of the project
-ROOT_DIR = ROOT_DIR = os.getcwd()
+ROOT_DIR = os.path.abspath(".")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
@@ -54,7 +50,7 @@ DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 ############################################################
 
 
-class CustomConfig(Config):
+class DamageConfig(Config):
     """Configuration for training on the toy  dataset.
     Derives from the base Config class and overrides some values.
     """
@@ -79,9 +75,9 @@ class CustomConfig(Config):
 #  Dataset
 ############################################################
 
-class CustomDataset(utils.Dataset):
+class DamageDataset(utils.Dataset):
 
-    def load_custom(self, dataset_dir, subset):
+    def load_damage(self, dataset_dir, subset):
         """Load a subset of the Balloon dataset.
         dataset_dir: Root directory of the dataset.
         subset: Subset to load: train or val
@@ -122,7 +118,7 @@ class CustomDataset(utils.Dataset):
             # Get the x, y coordinaets of points of the polygons that make up
             # the outline of each object instance. There are stores in the
             # shape_attributes (see json format above)
-            polygons = [r['shape_attributes'] for r in a['regions']]
+            polygons = [r['shape_attributes'] for r in a['regions'].values()]
 
             # load_mask() needs the image size to convert polygons to masks.
             # Unfortunately, VIA doesn't include it in JSON, so we must read
@@ -176,13 +172,13 @@ class CustomDataset(utils.Dataset):
 def train(model):
     """Train the model."""
     # Training dataset.
-    dataset_train = CustomDataset()
-    dataset_train.load_custom(args.dataset, "train")
+    dataset_train = DamageDataset()
+    dataset_train.load_damage(args.dataset, "train")
     dataset_train.prepare()
 
     # Validation dataset
-    dataset_val = CustomDataset()
-    dataset_val.load_custom(args.dataset, "val")
+    dataset_val = DamageDataset()
+    dataset_val.load_damage(args.dataset, "val")
     dataset_val.prepare()
 
     # *** This training schedule is an example. Update to your needs ***
@@ -192,7 +188,7 @@ def train(model):
     print("Training network heads")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE,
-                epochs=10,
+                epochs=100,
                 layers='heads')
 
 
@@ -200,7 +196,6 @@ def color_splash(image, mask):
     """Apply color splash effect.
     image: RGB image [height, width, 3]
     mask: instance segmentation mask [height, width, instance count]
-
     Returns result image.
     """
     # Make a grayscale copy of the image. The grayscale copy still
@@ -311,9 +306,9 @@ if __name__ == '__main__':
 
     # Configurations
     if args.command == "train":
-        config = CustomConfig()
+        config = DamageConfig()
     else:
-        class InferenceConfig(CustomConfig):
+        class InferenceConfig(DamageConfig):
             # Set batch size to 1 since we'll be running inference on
             # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
             GPU_COUNT = 1
